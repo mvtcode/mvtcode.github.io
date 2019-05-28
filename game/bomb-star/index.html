@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Mini Game - MVT</title>
+	<script src="../phaser.min.js" type="text/javascript"></script>
+</head>
+<body>
+	<script>
+		'use strict';
+
+		const game = new Phaser.Game({
+			type: Phaser.AUTO, // Phaser.AUTO | Phaser.WEBGL | Phaser.CANVAS
+			width: 800,
+			height: 600,
+			scene: {
+				preload: preload,
+				create: create,
+				update: update
+			},
+			physics: {
+				default: 'arcade',
+				arcade: {
+					gravity: { y: 300 },
+					debug: false
+				}
+			}
+		});
+
+		function preload () {
+			this.load.crossOrigin = "anonymous";
+			this.load.image('sky', 'assets/sky.png');
+			this.load.image('ground', 'assets/platform.png');
+			this.load.image('star', 'assets/star.png');
+			this.load.image('bomb', 'assets/bomb.png');
+			this.load.spritesheet('dude', 'assets/dude.png', { frameWidth: 32, frameHeight: 48 }); // chia nhỏ nhiều hình thành frame
+		}
+
+		function create () {
+			this.add.image(400, 300, 'sky');
+
+			const platforms = this.physics.add.staticGroup();
+
+			platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+			platforms.create(600, 400, 'ground');
+			platforms.create(50, 250, 'ground');
+			platforms.create(750, 220, 'ground');
+
+			const player = this.player = this.physics.add.sprite(100, 450, 'dude');
+
+			this.score = 0;
+			this.scoreText = this.add.text(16, 16, 'Điểm:  ' + this.score, { fontSize: '32px', fontWeight: 'bold', fill: '#ff0' });
+
+			this.level = 1;
+			this.levelText = this.add.text(16, 60, 'Level: ' + this.level, { fontSize: '32px', fontWeight: 'bold', fill: '#0f0' });
+
+			this.updateScore = () => {
+				this.scoreText.setText('Điểm:  ' + this.score);
+			};
+
+			this.add.text(290, 550, 'Ăn sao và tránh bom', { fontSize: '18px', fontWeight: 'bold', fill: '#f00' });
+			this.add.text(80, 570, 'Mỗi sao ăn được cộng 10 điểm, trúng bom trò chơi kết thúc', { fontSize: '18px', fontWeight: 'bold', fill: '#f00' });
+
+			this.updateLevel = () => {
+				this.levelText.setText('Level: ' + this.level);
+			};
+
+			player.setBounce(0.2); // độ nẩy
+			player.setCollideWorldBounds(true); // set giới hạn vùng hoạt động
+
+			this.anims.create({
+					key: 'left',
+					frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+					frameRate: 10,
+					repeat: -1
+			});
+
+			this.anims.create({
+					key: 'turn',
+					frames: [ { key: 'dude', frame: 4 } ],
+					frameRate: 20
+			});
+
+			this.anims.create({
+					key: 'right',
+					frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+					frameRate: 10,
+					repeat: -1
+			});
+
+			player.body.setGravityY(300);
+
+			this.physics.add.collider(player, platforms); // set vật chạm
+
+			// stars
+			const stars = this.stars = this.physics.add.group({
+				key: 'star',
+				repeat: 11,
+				setXY: { x: 12, y: 0, stepX: 70 }
+			});
+
+			stars.children.iterate(function (child) {
+				child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+			});
+
+			// set vật chạm star với tường
+			this.physics.add.collider(stars, platforms);
+
+			// event khi player chạm stars
+			this.physics.add.overlap(player, stars, collectStar, null, this);
+
+			// Bombs
+			const bombs = this.bombs = this.physics.add.group();
+			this.physics.add.collider(bombs, platforms);
+			this.physics.add.collider(player, bombs, hitBomb, null, this);
+		}
+
+		function update () {
+			const player = this.player;
+
+			const cursors = this.input.keyboard.createCursorKeys();
+			if (cursors.left.isDown) {
+				player.setVelocityX(-160);
+				player.anims.play('left', true);
+			} else if (cursors.right.isDown) {
+				player.setVelocityX(160);
+				player.anims.play('right', true);
+			} else {
+				player.setVelocityX(0);
+				player.anims.play('turn');
+			}
+
+			if (cursors.up.isDown && player.body.touching.down) {
+				player.setVelocityY(-480);
+			}
+		}
+
+		function collectStar (player, star) {
+			star.disableBody(true, true); // xóa star
+			this.score += 10;
+			this.updateScore();
+
+			if (this.stars.countActive(true) === 0) {
+				this.stars.children.iterate((child) => {
+					child.enableBody(true, child.x, 0, true, true);
+				});
+
+				const x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+
+				const bomb = this.bombs.create(x, 16, 'bomb');
+				bomb.setBounce(1);
+				bomb.setCollideWorldBounds(true);
+				bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
+				this.level += 1;
+				this.updateLevel();
+			}
+		}
+
+		function hitBomb (player, bomb) {
+			this.physics.pause();
+			player.setTint(0xff0000);
+			player.anims.play('turn');
+			if(confirm('Game Over!\nBạn được: ' + this.score + ' Điểm\nBạn có muốn chơi lại không?')) {
+				this.scene.restart();
+			} else {
+				window.history.go(-1);
+			}
+		}
+	</script>
+</body>
+</html>
