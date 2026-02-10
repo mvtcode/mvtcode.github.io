@@ -47,6 +47,11 @@ const SerialManager = {
                 await DriverTab.autoDetectAndSuggest(this.port);
             }
             
+            // Show helpful message for Serial Monitor
+            setTimeout(() => {
+                showToast('info', 'Đã kết nối', 'Nếu không thấy log, hãy nhấn nút RESET trên board ESP để khởi động lại chip.');
+            }, 1000);
+            
             return true;
         } catch (error) {
             log('Failed to connect: ' + error.message, 'error');
@@ -173,10 +178,10 @@ const SerialManager = {
 $(document).ready(function() {
     $('#btnConnect').on('click', async function() {
         const baudrate = parseInt($('#baudrate').val());
-        await SerialManager.connect(baudrate);
+        const connected = await SerialManager.connect(baudrate);
         
-        // Start reading if on Serial Monitor tab
-        if (AppState.currentTab === 'monitor') {
+        // Always start reading after successful connection
+        if (connected) {
             SerialMonitor.startReading();
         }
     });
