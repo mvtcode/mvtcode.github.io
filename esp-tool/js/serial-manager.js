@@ -23,6 +23,10 @@ const SerialManager = {
             // Open port with specified baudrate
             await this.port.open({ baudRate: baudrate });
             
+            // CRITICAL: Set DTR/RTS to false to release chip from reset/bootloader state
+            // Without this, ESP32-S3 (and other ESP chips) may stay silent
+            await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+            
             log('Serial port connected at ' + baudrate + ' baud');
             
             // Setup reader and writer
